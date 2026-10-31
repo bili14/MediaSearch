@@ -351,6 +351,38 @@ def media_build(scope=None) -> dict:
     }
 
 
+def media_add_scope(path: str, name: str | None = None) -> dict:
+    """Register a folder as a searchable scope (same logic as the UI "+ add
+    folder" button). Never touches file contents; build happens via media_build."""
+    mode = resolve_mode()
+    if mode == "direct":
+        try:
+            from . import libstore
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
+            import libstore
+        try:
+            res = libstore.add_scope(path, name)
+            return {"backend": "direct", **res}
+        except libstore.ReadOnlyRefused as e:
+            return {"backend": "direct", "error": str(e)}
+    if mode == "api":
+        body: dict = {"path": path}
+        if name:
+            body["name"] = name
+        resp = _api_post("/add-scope", body)
+        if not isinstance(resp, dict):
+            return {"backend": "api", "api": API_BASE,
+                    "error": f"/add-scope returned non-object ({type(resp).__name__})"}
+        return {"backend": "api", "api": API_BASE, **resp}
+    return {
+        "backend": "local",
+        "error": ("media_add_scope needs a running service (or direct mode): "
+                  "start 'medisearch serve' and retry with WEMM_BACKEND=auto/api"),
+    }
+
+
 def media_remove_scope(scope_id: str, delete_vectors: bool = True) -> dict:
     """Unregister a scope. Safety contract: NEVER deletes files on disk
     (files_deleted is always 0); delete_vectors removes only the vector records."""

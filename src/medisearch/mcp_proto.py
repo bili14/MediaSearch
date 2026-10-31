@@ -113,6 +113,23 @@ TOOL_DEFS = [
             "required": ["id"],
         },
     },
+    {
+        "name": "media_add_scope",
+        "description": (
+            "Register a folder as a searchable scope (same as the UI '+ add folder' button). "
+            "The folder's files are NOT read yet - follow with media_build to embed them. "
+            "Refuses non-existent folders, duplicate paths, and scopes nested inside existing ones. "
+            "Returns the new scope row {id, path, name, enabled}."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Absolute folder path to register"},
+                "name": {"type": "string", "description": "Optional display name (default: folder name)"},
+            },
+            "required": ["path"],
+        },
+    },
 ]
 
 
@@ -150,7 +167,7 @@ def _tools_call(arguments: dict) -> dict:
     params = arguments.get("arguments") or {}
 
     # read-only double guard: even a host that cached the old tool list cannot trigger writes
-    if READ_ONLY and name in ("media_build", "media_remove_scope"):
+    if READ_ONLY and name in ("media_build", "media_remove_scope", "media_add_scope"):
         return _err_content(READ_ONLY_ERR)
 
     if name == "media_search":
@@ -206,7 +223,21 @@ def _tools_call(arguments: dict) -> dict:
                 {"error": type(e).__name__, "detail": str(e)}, ensure_ascii=False))
         return _ok_content(res)
 
-    return _err_content("unknown tool: %r (only media_search / media_status / media_build / media_remove_scope exist)" % name)
+    if name == "media_add_scope":
+        p = params.get("path")
+        if not isinstance(p, str) or not p.strip():
+            return _err_content("bad params: path is required and must be a non-empty string")
+        nm = params.get("name")
+        if nm is not None and (not isinstance(nm, str) or not nm.strip()):
+            return _err_content("bad params: name must be a non-empty string if given")
+        try:
+            res = backend.media_add_scope(p.strip(), nm.strip() if isinstance(nm, str) else None)
+        except Exception as e:
+            return _err_content(json.dumps(
+                {"error": type(e).__name__, "detail": str(e)}, ensure_ascii=False))
+        return _ok_content(res)
+
+    return _err_content("unknown tool: %r (only media_search / media_status / media_build / media_remove_scope / media_add_scope exist)" % name)
 
 
 def handle_message(msg) -> dict | None:
