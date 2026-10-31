@@ -1,0 +1,30 @@
+# python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# runtime data (library + personal folders - never commit)
+data/embeddings.json
+data/embeddings.lock
+data/embeddings.json.tmp
+data/scopes.json
+data/settings.json
+data/config.json
+data/tmp/
+
+# model weights are downloaded on demand (Apache-2.0, NOT shipped in this repo)
+models/
+*.safetensors
+
+# logs & ad-hoc test bodies
+*.log
+_test*.json
+stderr.log
+
+# OS noise
+Thumbs.db
+.DS_Store

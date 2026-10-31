@@ -1,0 +1,16 @@
+{
+  "_template": "MediaSearch config. Copy to <data_dir>/config.json (repo checkout: ./data/config.json; pip install: ~/.medisearch/data/config.json). Any null/omitted key falls back to WEMM_* env vars and built-in defaults. Paths may use ~ for the user home.",
+  "_comment": "null = use default. See README 'Configuration' for full key docs.",
+  "data_dir": null,
+  "model_path": null,
+  "model_repo": "tencent/WeMM-Embedding-2B",
+  "models_dir": null,
+  "hf_home": null,
+  "hf_modules_cache": null,
+  "fallback_library": null,
+  "host": "127.0.0.1",
+  "port": 8686,
+  "api_base": "http://127.0.0.1:8686",
+  "lm_bed_api": "http://127.0.0.1:1234/api/v0/models",
+  "model_max_memory": { "0": "4GiB", "cpu": "64GiB" }
+}

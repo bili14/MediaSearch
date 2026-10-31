@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MediaSearch · 画面搜索</title>
+<style>
+:root{--bg:#14161a;--panel:#1c1f26;--line:#2a2e38;--txt:#e8eaed;--dim:#9aa0ab;
+--acc:#4da3ff;--ok:#42d392;--warn:#ffb04d;--bad:#ff5d5d}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);
+font:14px/1.6 "Microsoft YaHei",system-ui,sans-serif}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;gap:14px;align-items:center}
+header h1{font-size:18px;margin:0}header .sub{color:var(--dim);font-size:12px}
+main{display:grid;grid-template-columns:300px 1fr;min-height:calc(100vh - 58px)}
+aside{border-right:1px solid var(--line);padding:16px}
+h2{font-size:13px;color:var(--dim);margin:18px 0 8px;letter-spacing:.05em}
+h2:first-child{margin-top:0}
+.row{display:flex;gap:8px;align-items:center;margin:6px 0}
+input[type=text],input[type=number],select{width:100%;background:var(--panel);color:var(--txt);
+border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit}
+#q{padding:10px 12px;font-size:15px}
+#q::placeholder{color:var(--dim)}
+button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--txt);
+border-radius:6px;padding:7px 12px;font:inherit}
+button.pri{background:var(--acc);border-color:var(--acc);color:#08111f;font-weight:700}
+button:hover{filter:brightness(1.15)}
+label.ck{display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer}
+label.ck input{accent-color:var(--acc);width:15px;height:15px}
+.scope-path{color:var(--dim);font-size:11px;word-break:break-all;margin-left:23px}
+#saveHint{color:var(--ok);font-size:12px;min-height:16px}
+#buildBar{height:10px;background:var(--panel);border-radius:5px;overflow:hidden;display:none}
+#buildBar i{display:block;height:100%;width:0%;background:var(--acc);transition:width .4s}
+#buildInfo{font-size:12px;color:var(--dim);word-break:break-all}
+.st{display:flex;justify-content:space-between;margin:3px 0;font-size:13px}
+.st b{font-weight:600}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:1px}
+.dot.idle{background:var(--dim)}.dot.loading{background:var(--warn);animation:bl 1s infinite}
+.dot.loaded{background:var(--ok)}@keyframes bl{50%{opacity:.3}}
+#events{font-size:11px;color:var(--dim);word-break:break-all;max-height:90px;overflow:auto}
+#results{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;padding:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.card .th{height:110px;background:#0d0f13;display:flex;align-items:center;justify-content:center;
+font-size:30px;overflow:hidden}
+.card .th img{width:100%;height:100%;object-fit:cover}
+.card .bd{padding:9px 10px}
+.card .score{font-size:20px;font-weight:700}
+.card .meta{font-size:11px;color:var(--dim)}
+.card .path{font:11px Consolas,monospace;color:var(--dim);word-break:break-all;margin-top:4px;cursor:pointer}
+.card .path:hover{color:var(--acc)}
+.chips{padding:0 14px 4px;display:flex;gap:6px;flex-wrap:wrap}
+.chip{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:2px 10px;cursor:pointer}
+.chip:hover{color:var(--acc);border-color:var(--acc)}
+#resInfo{padding:0 16px 6px;color:var(--dim);font-size:12px}
+.empty{padding:40px;color:var(--dim);text-align:center}
+@media(max-width:800px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🔍 MediaSearch</h1>
+  <span class="sub">画面搜索引擎 · 搜的是内容不是文件名 · 127.0.0.1:8686</span>
+</header>
+<main>
+<aside>
+  <h2>搜索范围（勾选 = 建库＋参与搜索）</h2>
+  <div id="scopes"></div>
+  <div class="row">
+    <button id="addScope" style="flex:1">＋ 加文件夹</button>
+    <button id="build" style="flex:1">建库（增量）</button>
+  </div>
+  <div id="buildBar"><i></i></div>
+  <div id="buildInfo"></div>
+
+  <h2>参数面板（即改即生效 → settings.json）</h2>
+  <div class="row"><label>topN</label><input type="number" id="p-topn" min="1" max="20" style="width:70px"></div>
+  <div class="row"><label>向量维度</label>
+    <select id="p-dim" style="width:90px">
+      <option value="2048">2048（全）</option><option value="1024">1024</option>
+      <option value="512">512</option><option value="256">256</option>
+    </select></div>
+  <div class="row"><label>最低分</label><input type="number" id="p-min" step="0.01" min="0" max="1" style="width:70px"></div>
+  <div class="row"><label>闲置释放(分)</label><input type="number" id="p-idle" min="0" style="width:70px" title="0=不自动释放"></div>
+  <div id="saveHint"></div>
+
+  <h2>服务状态</h2>
+  <div class="st"><span>模型</span><b id="st-model"><span class="dot idle"></span>未知</b></div>
+  <div class="st"><span>显存占用</span><b id="st-vram">—</b></div>
+  <div class="st"><span>库件数</span><b id="st-items">—</b></div>
+  <div class="st"><span>库来源</span><b id="st-lib">—</b></div>
+  <h2>最近事件</h2>
+  <div id="events"></div>
+</aside>
+
+<section>
+  <div style="padding:14px 14px 4px;display:flex;gap:8px">
+    <input id="q" placeholder="输模糊短语，搜画面内容…（例：坐在窗台上的女孩）">
+    <button class="pri" id="go" style="white-space:nowrap">搜索</button>
+  </div>
+  <div class="chips" id="chips">
+    <span class="chip" data-q="坐在窗台上的女孩">坐在窗台上的女孩</span>
+    <span class="chip" data-q="海鸥">海鸥</span>
+    <span class="chip" data-q="她表情有点难过">她表情有点难过</span>
+  </div>
+  <div id="resInfo"></div>
+  <div id="results"><div class="empty">搜个短语试试（测集三题在左上标签里）</div></div>
+</section>
+</main>
+
+<script>
+const $=id=>document.getElementById(id);
+const checked=()=>[...document.querySelectorAll("#scopes input:checked")].map(i=>i.value);
+
+async function api(p,body,method){
+  let opts;
+  if(method)opts={method,headers:{"Content-Type":"application/json"},body:JSON.stringify(body||{})};
+  else if(body)opts={method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)};
+  const r=await fetch(p,opts);
+  if(!r.ok){let m;try{m=(await r.json()).detail}catch(e){m=r.statusText}throw new Error(m)}
+  return r.json()
+}
+
+async function loadScopes(){
+  const d=await api("/scopes");
+  $("scopes").innerHTML="";
+  d.scopes.forEach(s=>{
+    const l=document.createElement("label");l.className="ck";
+    l.innerHTML=`<input type="checkbox" value="${s.id}" ${s.enabled?"checked":""}> ${s.name}（${s.count??0}）`;
+    const p=document.createElement("div");p.className="scope-path";p.textContent=s.path;
+    const ck=l.querySelector("input");
+    ck.onchange=e=>api("/scopes",{id:s.id,enabled:e.target.checked},"PUT")
+      .then(loadScopes).catch(showErr);
+    const rm=document.createElement("button");rm.textContent="移除";rm.title="只删登记和向量档案，绝不删硬盘文件";
+    rm.style.cssText="font-size:11px;padding:2px 8px;margin:2px 0 8px;color:var(--dim)";
+    rm.onclick=()=>{
+      if(confirm("移除范围「"+s.name+"」？\n\n只删掉它的登记和库里的向量档案——绝不删除硬盘上的任何文件。")){
+        api("/remove-scope",{id:s.id}).then(()=>{loadScopes();poll()}).catch(showErr);
+      }
+    };
+    $("scopes").append(l,p,rm);
+  });
+}
+$("addScope").onclick=()=>{
+  const path=prompt("粘贴文件夹完整路径（只索引其中的图/视频，可含子夹）：");
+  if(!path)return;
+  api("/add-scope",{path:path.trim()}).then(loadScopes).catch(showErr);
+};
+$("build").onclick=()=>{
+  const sc=checked();
+  api("/embed-scope",sc.length?{scope:sc}:{}).then(d=>{
+    $("buildInfo").textContent="建库中… "+d.total+" 件待嵌（图≈1.2s/件，视频 4-15s/件）";
+    $("buildBar").style.display="block";
+  }).catch(showErr);
+};
+
+async function poll(){
+  try{
+    const s=await api("/status");
+    const dot={idle:"idle",loading:"loading",loaded:"loaded"}[s.model]||"idle";
+    $("st-model").innerHTML=`<span class="dot ${dot}"></span>${s.model==="loaded"?"已加载":s.model==="loading"?"热身中":"待命(首搜JIT热身)"}`;
+    $("st-vram").textContent=s.model==="loaded"?s.vram_mb+" MB":"0（闲置 "+(s.settings?.idle_release_min||0)+" 分自动释放）";
+    $("st-items").textContent=s.items;
+    $("st-lib").textContent={new:"新库 data/embeddings.json",fallback:"兜底库（fallback_library）",none:"无库"}[s.lib]||s.lib;
+    $("events").innerHTML=(s.events||[]).map(e=>"· "+e).join("<br>");
+    const b=s.building;
+    if(b&&b.state==="running"){
+      $("buildBar").style.display="block";
+      $("buildBar").firstElementChild.style.width=(b.total?Math.round(100*b.done/b.total):0)+"%";
+      $("buildInfo").textContent=`建库 ${b.done}/${b.total}  ${b.cur||""}`;
+    }else if(b&&b.state==="done"){
+      $("buildBar").firstElementChild.style.width="100%";
+      $("buildInfo").textContent="建库完成 "+(b.finished||"");
+      setTimeout(()=>$("buildBar").style.display="none",4000);
+      loadScopes().catch(()=>{});
+    }else if(b&&b.state==="error"){
+      $("buildBar").style.display="none";$("buildInfo").textContent="建库失败："+b.err;
+    }
+    if(s.settings){
+      $("p-topn").value=s.settings.topn;$("p-dim").value=String(s.settings.dim);
+      $("p-min").value=s.settings.min_score;$("p-idle").value=s.settings.idle_release_min;
+    }
+  }catch(e){}
+}
+setInterval(poll,2000);
+
+let saveT=null;
+function saveSettings(){
+  clearTimeout(saveT);
+  saveT=setTimeout(async()=>{
+    try{
+      await api("/settings",{topn:+$("p-topn").value||5,dim:+$("p-dim").value,
+        min_score:+$("p-min").value,idle_release_min:+$("p-idle").value},"PUT");
+      $("saveHint").textContent="✓ 已保存 settings.json，即改即生效";
+    }catch(e){$("saveHint").textContent="保存失败："+e.message}
+  },300);
+}
+["p-topn","p-dim","p-min","p-idle"].forEach(id=>$(id).addEventListener("change",saveSettings));
+
+function checkedList(){const c=checked();return c.length?c:"all"}
+async function doSearch(q){
+  $("go").disabled=true;$("go").textContent="搜…";
+  try{
+    const sc=checkedList();
+    const d=await api("/search",{q:q,scope:sc});
+    $("resInfo").textContent=`“${q}” · ${d.results.length} 条 · ${d.ms}ms · 库:${d.lib} · 范围:${Array.isArray(sc)?sc.join(","):sc}`;
+    $("resInfo").style.color="";
+    const R=$("results");R.innerHTML="";
+    if(!d.results.length)R.innerHTML='<div class="empty">没有结果（试试调低「最低分」）</div>';
+    d.results.forEach(r=>{
+      const c=document.createElement("div");c.className="card";
+      const img=r.modality==="image"
+        ?`<img loading="lazy" src="/file?path=${encodeURIComponent(r.path)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'图片缺失',style:'font-size:11px;color:var(--dim)'}))">`
+        :`<div style="font-size:34px">🎬</div>`;
+      c.innerHTML=`<div class="th">${img}</div><div class="bd">
+        <div class="score">${r.score.toFixed(3)}</div>
+        <div class="meta">${r.modality==="image"?"图":"视频"} · 范围 ${r.scope}</div>
+        <div class="path"></div></div>`;
+      const pathEl=c.querySelector(".path");
+      pathEl.textContent=r.path;pathEl.title="点击复制完整路径";
+      pathEl.onclick=async()=>{
+        try{await navigator.clipboard.writeText(r.path);
+        const el=c.querySelector(".path");el.style.color="var(--ok)";
+        setTimeout(()=>el.style.color="",1200);}catch(e){}
+      };
+      R.append(c);
+    });
+  }catch(e){$("resInfo").textContent="";$("results").innerHTML='<div class="empty">'+e.message+"</div>"}
+  finally{$("go").disabled=false;$("go").textContent="搜索"}
+}
+$("go").onclick=()=>doSearch($("q").value.trim());
+$("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&$("q").value.trim())doSearch($("q").value.trim())});
+document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{$("q").value=c.dataset.q;});
+function showErr(m){if(typeof m==="string"&&m!==""){const el=$("resInfo");el.textContent="⚠ "+m;el.style.color="var(--err,#ff6b6b)";el.scrollIntoView&&el.scrollIntoView({block:"nearest"});}}
+
+loadScopes().catch(showErr);poll();
+</script>
+</body>
+</html>

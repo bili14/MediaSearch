@@ -1,0 +1,48 @@
+# MediaSearch - local multimodal (image/video) content search, open-source tree.
+#
+# Dependency versions = evidence from the verified runtime venv
+# (pip freeze, torch 2.10.0+cu126 / transformers 5.2.0, Windows+CUDA 12.6,
+# the venv that produced the 10-31 acceptance baselines).
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "medisearch"
+version = "0.1.0"
+description = "MediaSearch: search your own image/video media by content (WeMM-Embedding-2B), with web UI + REST API + MCP on one port"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "MediaSearch contributors" }]
+keywords = ["multimodal", "embedding", "search", "mcp", "media"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Operating System :: Microsoft :: Windows",
+]
+dependencies = [
+  # core runtime (evidence: venv pip freeze 10-31)
+  "torch==2.10.0",                # verified build: 2.10.0+cu126 (see README note)
+  "transformers==5.2.0",
+  "accelerate==1.15.0",           # device_map/max_memory recipe requires 1.15 (key must be int 0)
+  "qwen-vl-utils[decord]==0.0.14",
+  "huggingface_hub==1.33.0",      # model auto-download (tencent/WeMM-Embedding-2B)
+  "numpy==2.5.4",
+  "pydantic==2.14.2",
+  "fastapi==0.162.0",
+  "uvicorn==0.54.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+medisearch = "medisearch.cli:main"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["medisearch"]
+
+[tool.setuptools.package-data]
+medisearch = ["static/*"]
