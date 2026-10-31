@@ -176,7 +176,9 @@ def _local_search(q: str, scope: str | None, topn: int) -> tuple:
 
     try:
         from . import model_layer
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import model_layer
     vecs = model_layer.get().embed_texts([q], dim=dim_i)
     qv = np.asarray(vecs[0], dtype=np.float32)
@@ -200,7 +202,9 @@ def _local_search(q: str, scope: str | None, topn: int) -> tuple:
 def _direct_search(q: str, scope: str | None, topn: int) -> list:
     try:
         from . import libstore
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import libstore
     s = libstore.load_settings()
     topn = max(1, min(int(topn), 50)) or s["topn"]
@@ -212,7 +216,9 @@ def _direct_search(q: str, scope: str | None, topn: int) -> list:
         return []
     try:
         from . import model_layer
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import model_layer
     qvec = model_layer.get().embed_texts([q], dim=dim)[0]
     return libstore.search(store, qvec, scope, None if scope == "all" else scope,
@@ -222,7 +228,9 @@ def _direct_search(q: str, scope: str | None, topn: int) -> list:
 def _direct_status() -> dict:
     try:
         from . import libstore, model_layer
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import libstore, model_layer
     store, source = libstore.load_library()
     s = libstore.load_settings()
@@ -281,7 +289,9 @@ def media_status() -> dict:
                     "error": f"{api_unavailable_note()}: {e}"}
     try:
         from . import model_layer
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import model_layer
     lib = library_path()
     items, dim = 0, 2048
@@ -313,7 +323,9 @@ def media_build(scope=None) -> dict:
     if mode == "direct":
         try:
             from . import libstore
-        except ImportError:
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
             import libstore
         try:
             info = libstore.start_build(scope)
@@ -346,7 +358,9 @@ def media_remove_scope(scope_id: str, delete_vectors: bool = True) -> dict:
     if mode == "direct":
         try:
             from . import libstore
-        except ImportError:
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
             import libstore
         try:
             res = libstore.remove_scope(scope_id, delete_vectors)

@@ -141,7 +141,9 @@ def _tools_call(arguments: dict) -> dict:
     """Returns the MCP tools/call result object (content array)."""
     try:
         from . import backend
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import backend
 
     name = arguments.get("name")

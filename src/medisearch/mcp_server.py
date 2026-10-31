@@ -40,7 +40,9 @@ def run_stdio() -> None:
 
     try:
         from . import mcp_proto
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import mcp_proto
     log("stdio mode started (pid=%d); backend=%s, probe %s"
         % (os.getpid(), os.environ.get("WEMM_BACKEND", "auto"), cfg.API_BASE))
@@ -49,7 +51,9 @@ def run_stdio() -> None:
         try:
             try:
                 from . import model_layer
-            except ImportError:
+            except ImportError as _e:
+                import sys as _sys
+                print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
                 import model_layer
             # the release log print must not leak into the protocol pipe either
             _o = sys.stdout

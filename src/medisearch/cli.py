@@ -25,7 +25,9 @@ import sys
 def _pin_and_env() -> None:
     try:
         from . import cfg
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import cfg
     cfg.pin_tmp()
 
@@ -34,14 +36,18 @@ def cmd_serve(args) -> int:
     _pin_and_env()
     try:
         from . import cfg, server
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import cfg, server
 
     if args.read_only:
         cfg.set_read_only(True)
         try:
             from . import mcp_proto
-        except ImportError:
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
             import mcp_proto
         mcp_proto.set_read_only(True)
     server.main(host=args.host, port=args.port,
@@ -54,13 +60,17 @@ def cmd_mcp(args) -> int:
     if args.read_only:
         try:
             from . import cfg, mcp_proto
-        except ImportError:
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
             import cfg, mcp_proto
         cfg.set_read_only(True)
         mcp_proto.set_read_only(True)
     try:
         from . import mcp_server
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import mcp_server
     mcp_server.run_stdio()
     return 0

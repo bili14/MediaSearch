@@ -256,7 +256,9 @@ def _create_app() -> FastAPI:
     async def v1_embeddings(req: Request):
         try:
             from . import openai_compat
-        except ImportError:
+        except ImportError as _e:
+            import sys as _sys
+            print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
             import openai_compat
         status, body = openai_compat.handle_embeddings(await req.body())
         return _json_response(body, status)
@@ -275,7 +277,9 @@ def wire_direct_backend() -> None:
     """Register the in-process tool implementations (no HTTP self-probe)."""
     try:
         from . import backend
-    except ImportError:
+    except ImportError as _e:
+        import sys as _sys
+        print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import backend
     backend.init_direct()
 

@@ -2,7 +2,7 @@
 
 在你**自己电脑的图/视频素材**上按**画面内容**做模糊搜索（不是搜文件名）。
 后端是 WeMM-Embedding-2B 多模态嵌入模型（2048 维，文/图/视频同空间），
-配一个单进程的"网页 + REST API + MCP + OpenAI 风格向量口"，任何支持 MCP 的
+配一个单进程的"网页 + REST API + MCP + OpenAI 风格向量接口"，任何支持 MCP 的
 harness（DSH / AutoClaw / Claude Desktop / Codex / OpenClaw …）都能直接挂上。
 
 - 代码许可：**MIT**（见 [LICENSE](LICENSE)）
@@ -13,7 +13,7 @@ harness（DSH / AutoClaw / Claude Desktop / Codex / OpenClaw …）都能直接�
 
 ```
 repo/
-├── src/medisearch/    # 全部代码（11 模块）：cfg 三层配置 · model_layer（WeMM 加载+自动下载+查床）
+├── src/medisearch/    # 全部代码（11 模块）：cfg 三层配置 · model_layer（WeMM 加载+自动下载+GPU 共存检测）
 │                     #   libstore（库/范围/增量建库）· server（一进程四张脸）· mcp_proto+backend
 │                     #   （MCP 协议/执行层）· mcp_server（stdio）· openai_compat（/v1/embeddings）
 │                     #   · cli+__main__（console 双命令：medisearch serve / medisearch mcp）
@@ -62,7 +62,7 @@ fastapi 0.162.0 / uvicorn 0.54.0 等（完整清单见 [pyproject.toml](pyprojec
 `model_path` 指向你已有的本地权重目录（含 model.safetensors 的夹子），
 代码检测到本地权重存在就不会下载。
 
-## 二、建库（三步走 · 第 2 步）
+## 二、起服务与建库（三步走 · 第 2 步）
 
 ```
 medisearch serve
@@ -71,7 +71,7 @@ medisearch serve
 （或 Windows 双击 `start-service.bat`；停服 `stop-service.bat`。）
 默认监听 **127.0.0.1:8686**，打开 http://127.0.0.1:8686/ ：
 
-1. 左侧「＋ 加文件夹」粘素材夹路径（只索引其中的图/视频，可含子夹）；
+1. 左侧「＋ 加文件夹」粘素材文件夹路径（只索引其中的图/视频，可含子夹）；
 2. 点「建库（增量）」——只嵌"没嵌过或 mtime 变了"的文件，
    图 ≈1.2s/件、视频 4–15s/件（视频为估算，以你机实测为准），进度条实时可见；
 3. 搜索框输模糊短语（例：坐在窗台上的女孩 / 海鸥），回车。
@@ -83,7 +83,7 @@ AI 生成原创、免费可用于演示与研究——见 [samples/README.md](sa
 
 数据都在 `<data>/`（仓库 checkout 下即 `./data/`，pip 安装下即
 `~/.medisearch/data/`）：`embeddings.json`（向量库，全量一个库、带范围标签）、
-`scopes.json`（登记的夹子）、`settings.json`（参数，即改即生效）、
+`scopes.json`（登记的文件夹）、`settings.json`（参数，即改即生效）、
 `config.json`（路径/模型/端口，模板 [config.json.example](config.json.example)）。
 
 ## 三、接 MCP（三步走 · 第 3 步）
@@ -106,7 +106,7 @@ Linux/macOS：`.venv/bin/medisearch`）＋ **args = `["mcp"]`** ＋ env 可选
 `WEMM_BACKEND=auto`（缺省即 auto：探测 8686 有服务=HTTP 透传，没有=本地向量库直读＋本地模型；
 `=api` 强制透传、`=local` 强制本地）。
 
-工具（stdio 与 HTTP 两传输相同）：
+工具（stdio 与 HTTP 两传输相同）。其中 `scope` = 素材文件夹登记后的名称/编号（第 2 步网页里「＋ 加文件夹」时生成），不填 = 全库搜索：
 
 ```
 media_search(q, scope?, topn?)  -> topN [{path, score, modality, scope}]
@@ -173,9 +173,8 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
    拉取、遵循其自身许可）。**仓库不发布权重**，5.2GB 的 model.safetensors
    只会在你机器上第一次运行时下载/加载。
 4. **实测基线**（验收机，GPU 空闲）：
-   - 首查含 JIT 热身 **30–60s**（权重已在本地 **10–15s**；自动下载另计；
-     旧基线 10–30s 为本地权重的较早实测，本处已对齐统一口径；
-     本机实测 6.6s（618 tensors，干净窗））；
+   - 首查含 JIT 热身：权重已在本地约 **10s**（验收机干净窗实测 6.6s，仅参考）；
+     首次运行需自动下载 5.2GB 权重，时间另计；不同机器有波动属正常；
    - 建库速度 **图 ≈1.2s/件**、视频 4–15s/件（估算，以你机实测为准）；
    - **闲置 30 分钟自动释放模型**（`settings.idle_release_min`，缺省 30；
      网页参数面板可改，0=不自动释放）——不跟你在同机跑的 LM Studio 抢床。
@@ -219,5 +218,5 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
 `media_remove_scope` / `POST /remove-scope` **只删范围登记＋库内向量档案，
 绝不删硬盘上的任何源文件**（返回 `files_deleted` 恒为 0）。
 `media_build` / `POST /embed-scope` 只写 `data/` 下数据文件（原子替换＋
-短锁），不碰素材夹。
+短锁），不碰素材文件夹。
 `GET /file` 只服务库成员的图（缩略图），路径不在库内一律 404。
