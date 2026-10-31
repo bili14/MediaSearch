@@ -34,26 +34,66 @@ except ImportError:  # script mode
 try:
     import msvcrt  # Windows
 
+    # In-process front gate: two threads of THIS process must never issue
+    # msvcrt.locking on the same 1-byte range at the same time (same-region
+    # re-lock within one process raises OSError/EDEADLK, verified by a
+    # two-handle C-style comparison). The guard serializes our threads;
+    # cross-process contention is settled by the non-blocking attempts +
+    # backoff below. POSIX (flock) needs neither and is left untouched.
+    _MSVCRT_GUARD = threading.Lock()
+    _LOCK_RETRY_SLEEP_S = 0.2
+    _LOCK_MAX_ATTEMPTS = 25
+
     def _lock(fh):
         # msvcrt.locking(..., 0) locks ZERO bytes = a no-op (two concurrent
         # 0-byte LK_LOCKs both succeed - the lock was an illusion, and two
         # services on the same data dir could lose vectors last-writer-wins).
         # Lock a real 1-byte range: seed the empty .lock file with 1 byte so
-        # the range exists, seek to 0, then LK_LOCK 1 byte. The second
-        # contender gets OSError (Errno 36 / EAGAIN) and must back off.
-        fh.seek(0)
-        if fh.tell() == 0 and not fh.read(1):
-            fh.seek(0)
-            fh.write(b"\0")
-            fh.flush()
-        fh.seek(0)
-        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
-
-    def _unlock(fh):
+        # the range exists, then take it NON-blocking with backoff, so a
+        # held lock (same process or another process) can never surface as
+        # a raw Errno 36/OSError: contenders sleep 0.2s x 25 and then raise
+        # a clear RuntimeError instead. Nothing is written on failure.
+        # Seed an empty .lock file with 1 byte via an APPEND write
+        # (never read the locked range: while the holder locks byte 0,
+        # even fh.read(1) raises EACCES on Windows). A cross-process
+        # race may make it 2 bytes; byte 0 stays the shared target.
         try:
-            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            if os.path.getsize(fh.name) == 0:
+                fh.write(b"\0")
+                fh.flush()
         except OSError:
             pass
+        try:
+            fh.seek(0)
+        except OSError as e:
+            raise RuntimeError(
+                "could not seek the library lock file: %s" % e) from e
+        last = None
+        for i in range(_LOCK_MAX_ATTEMPTS):
+            # The guard is held ONLY for the msvcrt call: while a contender
+            # sleeps, the in-process holder must still be able to _unlock
+            # (a guard held across the whole backoff window would starve the
+            # releaser and the contender would time out for no reason).
+            with _MSVCRT_GUARD:
+                try:
+                    msvcrt.locking(fh.fileno(), msvcrt.LK_NBLCK, 1)
+                    return
+                except OSError as ee:
+                    last = ee
+            time.sleep(_LOCK_RETRY_SLEEP_S)
+        raise RuntimeError(
+                "could not acquire the library lock on %s after ~%ds "
+                "(a service or thread holds it; last error: %s). "
+                "Retry a moment later - nothing was written." % (
+                    getattr(fh, "name", "?"),
+                    _LOCK_RETRY_SLEEP_S * _LOCK_MAX_ATTEMPTS, last))
+
+    def _unlock(fh):
+        with _MSVCRT_GUARD:
+            try:
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            except OSError:
+                pass
 
 except ImportError:
     try:
@@ -365,7 +405,10 @@ def start_build(scope=None) -> dict:
             "read-only mode (WEMM_READ_ONLY=1): library build writes to the library. "
             "Restart without read-only to allow builds.")
     with _build_lock:
-        if BUILD["state"] == "running":
+        if BUILD["state"] in ("running", "queued"):
+            # queued included: the window between 'queued' and the worker thread
+            # flipping to 'running' must also reject a second start_build
+            # (UI double-click / agent retry -> two concurrent builds).
             raise RuntimeError("build already running (%d/%d)" % (BUILD["done"], BUILD["total"]))
         target = _target_scopes(scope)
         if not target:

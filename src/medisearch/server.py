@@ -85,7 +85,9 @@ def _create_app() -> FastAPI:
         if not q:
             raise HTTPException(400, "empty query")
         s = libstore.load_settings()
-        topn = body.topn or s["topn"]
+        # same clamp as the MCP face (1..50): REST /search had no cap,
+        # topn=999999 would return the whole library + hold the model lock.
+        topn = max(1, min(int(body.topn or s["topn"]), 50))
         dim = int(body.dim or s["dim"])
         min_score = s["min_score"] if body.min_score is None else body.min_score
         scope = body.scope or "all"
@@ -303,4 +305,6 @@ def main(host: str | None = None, port: int | None = None, read_only: bool = Fal
             time.sleep(3)
             webbrowser.open("http://%s:%d/" % (host, port))
         threading.Thread(target=_open, daemon=True).start()
-    uvicorn.run(app, host=host, port=port, log_level="info")
+    # access_log off: /file?path=... requests would otherwise log every user's
+    # local media paths into the service window (privacy leak, audit S16).
+    uvicorn.run(app, host=host, port=port, log_level="info", access_log=False)

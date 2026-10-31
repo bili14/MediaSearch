@@ -11,11 +11,23 @@ harness（DSH / AutoClaw / Claude Desktop / Codex / OpenClaw …）都能直接�
 
 ## 一、装（三步走 · 第 1 步）
 
-```powershell
-# Windows（macOS/Linux 同理，路径换成 ./）
+```cmd
+rem Windows cmd（PowerShell 报「禁止运行脚本」就用 cmd 全程）
 python -m venv .venv
-.venv\Scripts\Activate.ps1        # Linux/macOS: source .venv/bin/activate
+call .venv\Scripts\activate
 pip install -e .
+```
+
+> **Windows 激活坑（必读）**：Windows 自带 PowerShell 5.1 默认执行策略 Restricted，
+> `.venv\Scripts\Activate.ps1` 一律被拦（「在此系统上禁止运行脚本」）。中招就二选一：
+> ① 切到 cmd 用 `call .venv\Scripts\activate`；② 干脆不激活，直接跑
+> `.venv\Scripts\python.exe`（此时 `medisearch` 不在 PATH，一律写成
+> `.venv\Scripts\python.exe -m medisearch serve`）。
+
+macOS / Linux：
+
+```bash
+python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 ```
 
 没有 venv 的话也可以用 uv：`uv venv .venv && uv pip install -e .`。
@@ -157,6 +169,9 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
    探到已加载模型 → 拒绝加载（503 lm_bed_busy），不双开不抢床。
 6. **4GiB 显存帽是命门**：模型 5.2GB 主体上卡、溢出层自动挪 CPU
    （`max_memory={0:"4GiB","cpu":"64GiB"}`，键必须整数 0）。改大反而 OOM。
+   `model_max_memory` 是 {GPU 键, cpu} **成对项**：只写 GPU 帽、不写 "cpu" 键，
+   溢出层无处可去、整模型挤上 GPU → OOM（config.json.example 两个键都留着别删；
+   config.json 里键写成字符串 "0" 无妨，载入时会自动 int 化）。
 7. **模型缺失才下载**：`model_path`（缺省 `~/.medisearch/models/WeMM-Embedding-2B`）
    里已有权重就直接用（断网可用）；支持 `HF_ENDPOINT` 走国内镜像。
 
@@ -175,6 +190,12 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
 | — | `WEMM_BACKEND` | `auto`（stdio 模式：探测服务→api，不通→local） |
 | — | `WEMM_READ_ONLY` | `0`（开=只读） |
 | — | `HF_ENDPOINT` | 无（镜像直传 huggingface_hub） |
+| — | `WEMM_HOME` | `~/.medisearch`（用户目录根：未另设时 data/模型/HF 缓存都从它派生） |
+| — | `WEMM_CONFIG` | `<data_dir>/config.json`（直指配置文件，盖过缺省位置） |
+| — | `WEMM_DATA` | 无（stdio local 模式：直指向量库文件，优先级最高） |
+| — | `WEMM_MODELS_DIR` | `~/.medisearch/models`（模型夹根；设了 `model_path` 时它让位） |
+| — | `WEMM_API_TIMEOUT` | `300`（秒，stdio api 模式搜索透传超时；首搜 JIT 慢） |
+| — | `WEMM_PROBE_TIMEOUT` | `2.0`（秒，auto 模式服务探测；冷 /status 偏慢可放宽） |
 
 ## 六、安全契约
 
