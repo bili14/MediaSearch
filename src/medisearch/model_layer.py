@@ -30,6 +30,7 @@ from __future__ import annotations
 import gc
 import json
 import os
+import sys
 import threading
 import time
 import urllib.request
@@ -68,10 +69,13 @@ _events = []  # small ring of recent happenings, shown by /status
 
 
 def _log(msg: str) -> None:
+    """Log to STDERR: in stdio mode stdout is the protocol pipe - even a
+    background-thread print (idle watchdog release) must never leak there.
+    serve mode: stderr is the console log, equally fine."""
     _events.append("%s %s" % (time.strftime("%H:%M:%S"), msg))
     if len(_events) > 12:
         _events.pop(0)
-    print("[medisearch] " + msg, flush=True)
+    print("[medisearch] " + msg, flush=True, file=sys.stderr)
 
 
 def get_events() -> list:

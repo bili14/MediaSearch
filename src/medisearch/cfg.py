@@ -117,7 +117,23 @@ MODEL_DIR = (
 # key must be int 0 (accelerate 1.15); 4GiB cap forces overflow layers to CPU
 # (Windows miscounts shared memory; without it the whole 5.2GB model lands on
 # the GPU and OOMs).
-MODEL_MAX_MEMORY = dict(_user_config().get("model_max_memory") or {0: "4GiB", "cpu": "64GiB"})
+def _normalize_max_memory(val) -> dict:
+    """JSON object keys are always strings ("0"), but accelerate 1.15's
+    max_memory only accepts int device keys - int-ify on load, so a config
+    written from config.json.example (string "0" key) loads cleanly."""
+    if not val:
+        return {0: "4GiB", "cpu": "64GiB"}
+    out = {}
+    for k, v in dict(val).items():
+        try:
+            k = int(k)
+        except (TypeError, ValueError):
+            pass  # non-numeric keys (e.g. "cpu") stay as-is
+        out[k] = v
+    return out
+
+
+MODEL_MAX_MEMORY = _normalize_max_memory(_user_config().get("model_max_memory"))
 MODEL_FULL_DIM = 2048  # stored vectors are always full-dim; truncation at search time
 
 # --- HF cache (some security software blocks C: writes; keep it configurable) ---

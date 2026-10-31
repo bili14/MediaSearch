@@ -35,11 +35,23 @@ try:
     import msvcrt  # Windows
 
     def _lock(fh):
-        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 0)
+        # msvcrt.locking(..., 0) locks ZERO bytes = a no-op (two concurrent
+        # 0-byte LK_LOCKs both succeed - the lock was an illusion, and two
+        # services on the same data dir could lose vectors last-writer-wins).
+        # Lock a real 1-byte range: seed the empty .lock file with 1 byte so
+        # the range exists, seek to 0, then LK_LOCK 1 byte. The second
+        # contender gets OSError (Errno 36 / EAGAIN) and must back off.
+        fh.seek(0)
+        if fh.tell() == 0 and not fh.read(1):
+            fh.seek(0)
+            fh.write(b"\0")
+            fh.flush()
+        fh.seek(0)
+        msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
 
     def _unlock(fh):
         try:
-            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
         except OSError:
             pass
 
