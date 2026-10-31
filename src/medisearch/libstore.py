@@ -374,7 +374,10 @@ def search(store: dict, qvec, scope, scopes_list, dim: int, topn: int, min_score
         sel = [i for i in range(len(keys)) if scores[i] >= min_score]
         sel.sort(key=lambda i: -scores[i])
     else:
-        want = set(scopes_list)
+        # scope may arrive as a single id string ("samples") or a list
+        # (["samples", "downloads"]): set(string) would split it into a
+        # character set and the filter would match nothing (audit S23).
+        want = set(scopes_list) if isinstance(scopes_list, (list, tuple)) else {scopes_list}
         sel = [i for i in range(len(keys)) if iscp[i] in want and scores[i] >= min_score]
         sel.sort(key=lambda i: -scores[i])
     out = []
