@@ -9,6 +9,21 @@ harness（DSH / AutoClaw / Claude Desktop / Codex / OpenClaw …）都能直接�
 - 模型权重：`tencent/WeMM-Embedding-2B`（Hugging Face，**Apache-2.0**），
   首次运行自动下载，**本仓库不发布/不附带权重**。
 
+## 仓库结构
+
+```
+repo/
+├── src/medisearch/    # 全部代码（11 模块）：cfg 三层配置 · model_layer（WeMM 加载+自动下载+查床）
+│                     #   libstore（库/范围/增量建库）· server（一进程四张脸）· mcp_proto+backend
+│                     #   （MCP 协议/执行层）· mcp_server（stdio）· openai_compat（/v1/embeddings）
+│                     #   · cli+__main__（console 双命令：medisearch serve / medisearch mcp）
+├── src/medisearch/static/  # 网页 UI（index.html 单页，随包分发）
+├── config.json.example  # 配置模板（env > data/config.json > 内置缺省）
+├── start-service.bat / stop-service.bat  # Windows 双击起停（纯 ASCII）
+├── samples/           # 演示素材 8 件（4 图+4 视频：猫/汽车/牛肉面/海鸥）+ 许可说明
+└── data/（运行期自建） # 四件套：embeddings.json 向量库 · scopes.json · settings.json · config.json（均不入 git）
+```
+
 ## 一、装（三步走 · 第 1 步）
 
 ```cmd
@@ -58,7 +73,7 @@ medisearch serve
 
 1. 左侧「＋ 加文件夹」粘素材夹路径（只索引其中的图/视频，可含子夹）；
 2. 点「建库（增量）」——只嵌"没嵌过或 mtime 变了"的文件，
-   图 ≈1.2s/件、视频 4–15s/件（GPU 实测口径），进度条实时可见；
+   图 ≈1.2s/件、视频 4–15s/件（视频为估算，以你机实测为准），进度条实时可见；
 3. 搜索框输模糊短语（例：坐在窗台上的女孩 / 海鸥），回车。
 
 仓库自带演示样例 `samples/`（4 图 + 4 视频：猫 / 汽车 / 红烧牛肉面 / 海鸥，
@@ -158,8 +173,9 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
    拉取、遵循其自身许可）。**仓库不发布权重**，5.2GB 的 model.safetensors
    只会在你机器上第一次运行时下载/加载。
 4. **实测基线**（验收机，GPU 空闲）：
-   - 首查含 JIT 热身 **10–30s**（权重已在本地时约 10–15s；自动下载另计）；
-   - 建库速度 **图 ≈1.2s/件**、视频 4–15s/件；
+   - 首查含 JIT 热身 **30–60s**（权重已在本地 **10–15s**；自动下载另计；
+     旧基线 10–30s 为本地权重的较早实测，本处已对齐统一口径）；
+   - 建库速度 **图 ≈1.2s/件**、视频 4–15s/件（估算，以你机实测为准）；
    - **闲置 30 分钟自动释放模型**（`settings.idle_release_min`，缺省 30；
      网页参数面板可改，0=不自动释放）——不跟你在同机跑的 LM Studio 抢床。
    - 参考命中（101 件媒体库）：「坐在窗台上的女孩」→ top1 14.png（0.4355）；
