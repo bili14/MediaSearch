@@ -24,6 +24,7 @@ classifiers = [
 dependencies = [
   # core runtime (evidence: venv pip freeze 10-31)
   "torch==2.10.0",                # verified build: 2.10.0+cu126 (see README note)
+  "torchvision==0.25.0",          # REQUIRED by model_layer (image preprocessing); missing = serve crashes with misleading "No module named cfg"
   "transformers==5.2.0",
   "accelerate==1.15.0",           # device_map/max_memory recipe requires 1.15 (key must be int 0)
   "qwen-vl-utils[decord]==0.0.14",
