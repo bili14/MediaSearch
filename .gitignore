@@ -36,3 +36,7 @@ Thumbs.db
 # audit / shell artifacts (temp dirs + Windows nul-device junk)
 .audit-tmp/
 nul
+
+# local HF module cache (WEMM_HF_HOME on this machine) + local backups
+hf/
+*.bak-*

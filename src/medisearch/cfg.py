@@ -117,12 +117,45 @@ MODEL_DIR = (
 # key must be int 0 (accelerate 1.15); 4GiB cap forces overflow layers to CPU
 # (Windows miscounts shared memory; without it the whole 5.2GB model lands on
 # the GPU and OOMs).
+def _default_cpu_budget() -> str:
+    """CPU-side offload budget: probe physical RAM, reserve 4GiB for the OS.
+    Standard library only (ctypes GlobalMemoryStatusEx); falls back to a
+    conservative 16GiB on any failure. A hard 64GiB default page-faulted
+    low-RAM machines into disk thrash."""
+    try:
+        import ctypes
+
+        class MEMORYSTATUSEX(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_ulong),
+                ("dwMemoryLoad", ctypes.c_ulong),
+                ("ullTotalPhys", ctypes.c_ulonglong),
+                ("ullAvailPhys", ctypes.c_ulonglong),
+                ("ullTotalPageFile", ctypes.c_ulonglong),
+                ("ullAvailPageFile", ctypes.c_ulonglong),
+                ("ullTotalVirtual", ctypes.c_ulonglong),
+                ("ullAvailVirtual", ctypes.c_ulonglong),
+                ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+            ]
+
+        st = MEMORYSTATUSEX()
+        st.dwLength = ctypes.sizeof(MEMORYSTATUSEX)
+        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(st)) and st.ullTotalPhys:
+            total_gib = st.ullTotalPhys / (1024 ** 3)
+            budget = int(total_gib) - 4  # keep 4GiB breathing room for the OS
+            budget = min(64, max(8, budget))
+            return f"{budget}GiB"
+    except Exception:
+        pass
+    return "16GiB"
+
+
 def _normalize_max_memory(val) -> dict:
     """JSON object keys are always strings ("0"), but accelerate 1.15's
     max_memory only accepts int device keys - int-ify on load, so a config
     written from config.json.example (string "0" key) loads cleanly."""
     if not val:
-        return {0: "4GiB", "cpu": "64GiB"}
+        return {0: "4GiB", "cpu": _default_cpu_budget()}
     out = {}
     for k, v in dict(val).items():
         try:

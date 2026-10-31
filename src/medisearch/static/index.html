@@ -48,9 +48,6 @@ font-size:30px;overflow:hidden}
 .card .meta{font-size:11px;color:var(--dim)}
 .card .path{font:11px Consolas,monospace;color:var(--dim);word-break:break-all;margin-top:4px;cursor:pointer}
 .card .path:hover{color:var(--acc)}
-.chips{padding:0 14px 4px;display:flex;gap:6px;flex-wrap:wrap}
-.chip{font-size:12px;color:var(--dim);border:1px solid var(--line);border-radius:20px;padding:2px 10px;cursor:pointer}
-.chip:hover{color:var(--acc);border-color:var(--acc)}
 #resInfo{padding:0 16px 6px;color:var(--dim);font-size:12px}
 .empty{padding:40px;color:var(--dim);text-align:center}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
@@ -96,11 +93,6 @@ font-size:30px;overflow:hidden}
   <div style="padding:14px 14px 4px;display:flex;gap:8px">
     <input id="q" placeholder="输模糊短语，搜画面内容…（例：坐在窗台上的女孩）">
     <button class="pri" id="go" style="white-space:nowrap">搜索</button>
-  </div>
-  <div class="chips" id="chips">
-    <span class="chip" data-q="坐在窗台上的女孩">坐在窗台上的女孩</span>
-    <span class="chip" data-q="海鸥">海鸥</span>
-    <span class="chip" data-q="她表情有点难过">她表情有点难过</span>
   </div>
   <div id="resInfo"></div>
   <div id="results"><div class="empty">搜个短语试试（测集三题在左上标签里）</div></div>
@@ -229,7 +221,6 @@ async function doSearch(q){
 }
 $("go").onclick=()=>doSearch($("q").value.trim());
 $("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&$("q").value.trim())doSearch($("q").value.trim())});
-document.querySelectorAll(".chip").forEach(c=>c.onclick=()=>{$("q").value=c.dataset.q;});
 function showErr(m){if(typeof m==="string"&&m!==""){const el=$("resInfo");el.textContent="⚠ "+m;el.style.color="var(--err,#ff6b6b)";el.scrollIntoView&&el.scrollIntoView({block:"nearest"});}}
 
 loadScopes().catch(showErr);poll();
