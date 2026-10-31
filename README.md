@@ -24,12 +24,26 @@ repo/
 └── data/（运行期自建） # 四件套：embeddings.json 向量库 · scopes.json · settings.json · config.json（均不入 git）
 ```
 
-## 一、装（三步走 · 第 1 步）
+## 一、装（三步走 · 第 1 步：先装 GPU 引擎，再装本体）
+
+> **硬件要求**：NVIDIA 显卡，显存 **6GB 起**（本工具运行时占用约 **4GB 显存**，
+> 放不下的层自动卸到内存，由 CPU 辅助计算）。没有 NVIDIA 卡也能跑（见下方 CPU 兜底），只是慢。
+
+> **⚠️ 最重要的坑：PyPI 默认的 torch 是 CPU 版**（`pip install torch` 直接装就是），
+> 装成 CPU 版不会报错，但建库极慢、显存永远是 0。所以第 1 步必须先手动装 CUDA 版并验证：
 
 ```cmd
 rem Windows cmd（PowerShell 报「禁止运行脚本」就用 cmd 全程）
 python -m venv .venv
 call .venv\Scripts\activate
+
+rem 第 1 步先装 GPU 版 torch（约 2.4GB 下载），不要跳过：
+pip install "torch==2.10.0+cu126" "torchvision==0.25.0+cu126" --index-url https://download.pytorch.org/whl/cu126
+
+rem 装完立刻自检，必须输出 True；False = 装成 CPU 版了，重来上一步：
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"
+
+rem 第 2 步再装本体：
 pip install -e .
 ```
 
@@ -39,10 +53,13 @@ pip install -e .
 > `.venv\Scripts\python.exe`（此时 `medisearch` 不在 PATH，一律写成
 > `.venv\Scripts\python.exe -m medisearch serve`）。
 
-macOS / Linux：
+macOS / Linux（同样先装 GPU 引擎再装本体）：
 
 ```bash
-python3 -m venv .venv && source .venv/bin/activate && pip install -e .
+python3 -m venv .venv && source .venv/bin/activate
+pip install "torch==2.10.0+cu126" "torchvision==0.25.0+cu126" --index-url https://download.pytorch.org/whl/cu126
+python -c "import torch; print(torch.__version__, torch.cuda.is_available())"  # 必须输出 True
+pip install -e .
 ```
 
 没有 venv 的话也可以用 uv：`uv venv .venv && uv pip install -e .`。
@@ -51,10 +68,10 @@ python3 -m venv .venv && source .venv/bin/activate && pip install -e .
 transformers 5.2.0 / accelerate 1.15.0 / qwen-vl-utils[decord] 0.0.14 /
 fastapi 0.162.0 / uvicorn 0.54.0 等（完整清单见 [pyproject.toml](pyproject.toml)）。
 
-> **torch 说明**：验证基线是 `torch==2.10.0+cu126`。`pip install torch==2.10.0`
-> 装的是 PyPI 默认构建；需要完全复现 CUDA 12.6 构建时用
-> `pip install "torch==2.10.0+cu126" --index-url https://download.pytorch.org/whl/cu126`。
-> 无 GPU 也能跑（`device_map=auto` 会全落 CPU，只是慢）。
+> **CPU 兜底（仅限没有 NVIDIA 卡的机器）**：跳过第 1 步的 cu126 安装、直接
+> `pip install -e .` 时会带上 PyPI 默认构建的 torch（CPU 版），`device_map=auto`
+> 全落 CPU 也能跑，建库速度慢一个数量级。**有 NVIDIA 卡的不要走这条路**——
+> 如果已经误装了 CPU 版，用 `--reinstall` 重跑第 1 步的 cu126 安装即可纠正。
 
 **国内镜像（可选）**：模型自动下载走 Hugging Face。直连慢/被墙时设
 `HF_ENDPOINT=https://hf-mirror.com`（或你惯用的镜像）再首次运行即可，
@@ -183,8 +200,10 @@ MCP HTTP 版（多 client/远程）：服务起着时填 `url = "http://127.0.0.
 5. **GPU 床规矩**：加载前探本机 LM Studio API（`WEMM_LM_BED_API`，缺省
    `http://127.0.0.1:1234/api/v0/models`）——探不通=没跑=GPU 归我们；
    探到已加载模型 → 拒绝加载（503 lm_bed_busy），不双开不抢床。
-6. **4GiB 显存帽是命门**：模型 5.2GB 主体上卡、溢出层自动挪 CPU
-   （`max_memory={0:"4GiB","cpu":"64GiB"}`，键必须整数 0）。改大反而 OOM。
+6. **4GiB 显存帽是命门**：模型 5.2GB 主体上卡、溢出层自动挪 CPU/内存
+   （`max_memory={0:"4GiB","cpu":自动}`——CPU 侧预算启动时按物理内存自适应，
+   留 4GiB 给系统、夹在 8-64GiB，探测失败退 16GiB；config.json 可手动覆盖，
+   键必须整数 0）。GPU 帽改大反而 OOM。
    `model_max_memory` 是 {GPU 键, cpu} **成对项**：只写 GPU 帽、不写 "cpu" 键，
    溢出层无处可去、整模型挤上 GPU → OOM（config.json.example 两个键都留着别删；
    config.json 里键写成字符串 "0" 无妨，载入时会自动 int 化）。
