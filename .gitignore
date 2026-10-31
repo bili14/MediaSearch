@@ -25,6 +25,10 @@ models/
 _test*.json
 stderr.log
 
+# torch inductor / triton JIT caches (created in CWD when the model runs)
+torchinductor_*/
+.triton/
+
 # OS noise
 Thumbs.db
 .DS_Store
