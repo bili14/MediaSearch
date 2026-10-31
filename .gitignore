@@ -28,3 +28,7 @@ stderr.log
 # OS noise
 Thumbs.db
 .DS_Store
+
+# audit / shell artifacts (temp dirs + Windows nul-device junk)
+.audit-tmp/
+nul
