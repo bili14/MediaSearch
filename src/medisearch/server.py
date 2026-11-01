@@ -226,11 +226,30 @@ def _create_app() -> FastAPI:
         if not p.is_file():
             raise HTTPException(410, "file vanished from disk")
         # official shell API: open folder window with the item selected (Win10/11)
-        pidl = ctypes.windll.shell32.ILCreateFromPathW(str(p))
+        # NOTE: argtypes/restype are mandatory on 64-bit Python -- without them the
+        # PIDL pointer is truncated to 32-bit and the call segfaults the process.
+        shell32 = ctypes.windll.shell32
+        shell32.ILCreateFromPathW.argtypes = [ctypes.c_wchar_p]
+        shell32.ILCreateFromPathW.restype = ctypes.c_void_p
+        shell32.SHOpenFolderAndSelectItems.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+        shell32.SHOpenFolderAndSelectItems.restype = ctypes.HRESULT
+        shell32.ILFree.argtypes = [ctypes.c_void_p]
+        # SHOpenFolderAndSelectItems needs COM initialized on this thread
+        # (FastAPI threadpool threads start uninitialized).
+        ole32 = ctypes.windll.ole32
+        coinited = ole32.CoInitializeEx(None, 0x2) >= 0  # COINIT_APARTMENTTHREADED
         try:
-            ctypes.windll.shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0)
+            pidl = shell32.ILCreateFromPathW(str(p))
+            if not pidl:
+                raise HTTPException(500, "cannot resolve path")
+            try:
+                if shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0) != 0:
+                    raise HTTPException(500, "open folder failed")
+            finally:
+                shell32.ILFree(pidl)
         finally:
-            ctypes.windll.shell32.ILFree(pidl)
+            if coinited:
+                ole32.CoUninitialize()
         return {"ok": True, "path": str(p)}
 
     # ---------------------------------------------------------------- face 2: MCP streamable-HTTP
