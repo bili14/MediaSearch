@@ -73,6 +73,7 @@ def _create_app() -> FastAPI:
         dim: int | None = None
         min_score: float | None = None
         idle_release_min: float | None = None
+        gpu_cap_gib: float | None = None
 
     # ---------------------------------------------------------------- face 1: web + API
     @app.get("/", include_in_schema=False)
@@ -87,7 +88,7 @@ def _create_app() -> FastAPI:
         s = libstore.load_settings()
         # same clamp as the MCP face (1..50): REST /search had no cap,
         # topn=999999 would return the whole library + hold the model lock.
-        topn = max(1, min(int(body.topn or s["topn"]), 50))
+        topn = max(1, min(int(body.topn or s["topn"]), 500))
         dim = int(body.dim or s["dim"])
         min_score = s["min_score"] if body.min_score is None else body.min_score
         scope = body.scope or "all"
@@ -118,6 +119,7 @@ def _create_app() -> FastAPI:
         return {
             "model": model_layer.get_state(),
             "vram_mb": model_layer.vram_mb(),
+            "vram_total_mb": model_layer.vram_total_mb(),
             "items": len(store),
             "lib": source,                      # new | fallback | none
             "settings": s,
@@ -182,6 +184,8 @@ def _create_app() -> FastAPI:
         patch = {k: v for k, v in body.model_dump().items() if v is not None}
         if body.dim is not None and body.dim not in (2048, 1024, 512, 256, 128):
             raise HTTPException(400, "dim must be 2048/1024/512/256/128")
+        if body.gpu_cap_gib is not None and not (0 <= body.gpu_cap_gib <= 64):
+            raise HTTPException(400, "gpu_cap_gib must be 1..64")
         try:
             return libstore.save_settings(patch)
         except libstore.ReadOnlyRefused as e:
@@ -201,11 +205,33 @@ def _create_app() -> FastAPI:
         if not p.is_file():
             raise HTTPException(410, "file vanished from disk")
         MIMES = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
-                 ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp"}
+                 ".gif": "image/gif", ".webp": "image/webp", ".bmp": "image/bmp",
+                 ".mp4": "video/mp4", ".m4v": "video/mp4", ".webm": "video/webm",
+                 ".mov": "video/quicktime", ".mkv": "video/x-matroska"}
         mt = MIMES.get(p.suffix.lower())
         if mt is None:
-            raise HTTPException(415, "only images are served as thumbnails")
+            raise HTTPException(415, "unsupported media type")
         return FileResponse(p, media_type=mt)
+
+    @app.post("/reveal")
+    def reveal(body: dict):
+        """Open Explorer with the file selected (Win10/11). Library members only."""
+        import ctypes
+        p = Path((body or {}).get("path", ""))
+        if not p.is_absolute():
+            raise HTTPException(400, "path required")
+        store, _src = libstore.load_library()
+        if str(p.resolve()) not in store:
+            raise HTTPException(404, "not a library member")
+        if not p.is_file():
+            raise HTTPException(410, "file vanished from disk")
+        # official shell API: open folder window with the item selected (Win10/11)
+        pidl = ctypes.windll.shell32.ILCreateFromPathW(str(p))
+        try:
+            ctypes.windll.shell32.SHOpenFolderAndSelectItems(pidl, 0, None, 0)
+        finally:
+            ctypes.windll.shell32.ILFree(pidl)
+        return {"ok": True, "path": str(p)}
 
     # ---------------------------------------------------------------- face 2: MCP streamable-HTTP
     @app.get("/healthz")

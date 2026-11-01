@@ -207,7 +207,7 @@ def _direct_search(q: str, scope: str | None, topn: int) -> list:
         print("[medisearch] package-style import failed: %s; trying source-tree style" % _e, file=_sys.stderr)
         import libstore
     s = libstore.load_settings()
-    topn = max(1, min(int(topn), 50)) or s["topn"]
+    topn = max(1, min(int(topn), 500)) or s["topn"]
     dim = int(s["dim"])
     min_score = s["min_score"]
     scope = scope or "all"
@@ -250,7 +250,7 @@ def _direct_status() -> dict:
 # ═══════════════ tool entries (mcp_proto calls only these) ═══════════════
 
 def media_search(q: str, scope: str | None = None, topn: int = 5) -> dict:
-    topn = max(1, min(int(topn), 50))
+    topn = max(1, min(int(topn), 500))
     mode = resolve_mode()
     if mode == "direct":
         results = _direct_search(q, scope, topn)

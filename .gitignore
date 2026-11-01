@@ -1,4 +1,4 @@
-# python
+﻿# python
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -39,4 +39,4 @@ nul
 
 # local HF module cache (WEMM_HF_HOME on this machine) + local backups
 hf/
-*.bak-*
+*.bak*

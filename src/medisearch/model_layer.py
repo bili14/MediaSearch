@@ -94,6 +94,14 @@ def vram_mb() -> int:
     except Exception:
         return 0
 
+def vram_total_mb() -> int:
+    try:
+        if torch.cuda.is_available():
+            return int(torch.cuda.get_device_properties(0).total_memory // 1048576)
+    except Exception:
+        pass
+    return 0
+
 
 def check_lm_bed() -> None:
     """Probe LM Studio. Raises BedBusyError if a model with state=loaded is on the bed.
@@ -143,17 +151,39 @@ def load() -> None:
         if _state == "loaded":
             return
         _state = "loading"
-        check_lm_bed()  # may raise BedBusyError -> caller surfaces 503
+        # opt-out switch: WEMM_LM_BED_CHECK=off/0/false skips the LM Studio probe
+        if os.environ.get("WEMM_LM_BED_CHECK", "on").strip().lower() not in ("0", "off", "false", "no"):
+            check_lm_bed()  # may raise BedBusyError -> caller surfaces 503
         _ensure_model_files()
         _log("loading model (first use, warm-up ~10-60s)...")
         t0 = time.time()
         _processor = AutoProcessor.from_pretrained(cfg.MODEL_DIR, trust_remote_code=True)
+        try:
+            from .libstore import load_settings
+        except ImportError:
+            from libstore import load_settings
+        s = load_settings()
+        try:
+            cap = int(s.get("gpu_cap_gib", 6) or 0)
+        except Exception:
+            cap = 6
+        # single runtime switch: the VRAM budget. 0 = pure CPU; >0 = GPU budget
+        # (weights fit -> full speed; overflow spills to RAM, same as LLM offload)
+        use_gpu = torch.cuda.is_available() and cap != 0
+        if use_gpu:
+            _dm = "auto"
+            _mm = {0: "%dGiB" % cap, "cpu": cfg._default_cpu_budget()}
+            _log("load: gpu mode, vram budget=%dGiB" % cap)
+        else:
+            _dm = "cpu"
+            _mm = None
+            _log("load: cpu mode (vram budget 0, cuda=%s)" % torch.cuda.is_available())
         _model = AutoModel.from_pretrained(
             cfg.MODEL_DIR,
             trust_remote_code=True,
             dtype=torch.bfloat16,
-            device_map="auto",
-            max_memory=dict(cfg.MODEL_MAX_MEMORY),
+            device_map=_dm,
+            max_memory=_mm,
         ).eval()
         _state = "loaded"
         _last_use = time.time()

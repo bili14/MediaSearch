@@ -12,6 +12,9 @@ rem  2) start the service (repo venv preferred, else python on PATH)
 rem  3) open the web UI in the default browser
 rem ============================================================
 setlocal
+rem keep all runtime state on the public drive (model + library + cache)
+set "WEMM_HOME=%~dp0"
+set "WEMM_HF_HOME=%~dp0hf"
 set "PY=python"
 if exist "%~dp0.venv\Scripts\python.exe" set "PY=%~dp0.venv\Scripts\python.exe"
 if exist "%~dp0.venv\Scripts\medisearch.exe" set "EXE=%~dp0.venv\Scripts\medisearch.exe"

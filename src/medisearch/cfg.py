@@ -203,10 +203,12 @@ BUILD_CHECKPOINT = 5
 # ---------------------------------------------------------------- defaults
 
 DEFAULT_SETTINGS = {
-    "topn": 5,               # results per search
+    "topn": 20,              # results per search
     "dim": 2048,             # vector dim used for scoring (2048/1024/512/256)
-    "min_score": 0.0,        # drop results below this cosine score
+    "min_score": 0.2,        # drop results below this cosine score
     "idle_release_min": 30,  # auto-release model after N idle minutes
+    "gpu_cap_gib": 6,       # GiB budget on GPU0: 0 = pure CPU; 6 = weights fully on GPU;
+                            # bigger = roomier budget, faster builds; overflow spills to RAM
 }
 
 # Seeded into data/scopes.json on first start. Repo checkout: the bundled

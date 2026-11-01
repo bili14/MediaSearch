@@ -17,6 +17,8 @@ aside{border-right:1px solid var(--line);padding:16px}
 h2{font-size:13px;color:var(--dim);margin:18px 0 8px;letter-spacing:.05em}
 h2:first-child{margin-top:0}
 .row{display:flex;gap:8px;align-items:center;margin:6px 0}
+.row>label{flex:0 0 92px;color:var(--dim);font-size:13px}
+
 input[type=text],input[type=number],select{width:100%;background:var(--panel);color:var(--txt);
 border:1px solid var(--line);border-radius:6px;padding:7px 9px;font:inherit}
 #q{padding:10px 12px;font-size:15px}
@@ -25,6 +27,7 @@ button{cursor:pointer;border:1px solid var(--line);background:var(--panel);color
 border-radius:6px;padding:7px 12px;font:inherit}
 button.pri{background:var(--acc);border-color:var(--acc);color:#08111f;font-weight:700}
 button:hover{filter:brightness(1.15)}
+button:disabled{opacity:.45;cursor:not-allowed}
 label.ck{display:flex;gap:8px;align-items:center;margin:4px 0;cursor:pointer}
 label.ck input{accent-color:var(--acc);width:15px;height:15px}
 .scope-path{color:var(--dim);font-size:11px;word-break:break-all;margin-left:23px}
@@ -42,7 +45,7 @@ label.ck input{accent-color:var(--acc);width:15px;height:15px}
 .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .card .th{height:110px;background:#0d0f13;display:flex;align-items:center;justify-content:center;
 font-size:30px;overflow:hidden}
-.card .th img{width:100%;height:100%;object-fit:cover}
+.card .th img,.card .th video{width:100%;height:100%;object-fit:contain}
 .card .bd{padding:9px 10px}
 .card .score{font-size:20px;font-weight:700}
 .card .meta{font-size:11px;color:var(--dim)}
@@ -50,6 +53,13 @@ font-size:30px;overflow:hidden}
 .card .path:hover{color:var(--acc)}
 #resInfo{padding:0 16px 6px;color:var(--dim);font-size:12px}
 .empty{padding:40px;color:var(--dim);text-align:center}
+#lb{position:fixed;inset:0;background:rgba(0,0,0,.85);display:none;z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:20px}
+#lb.on{display:flex}
+#lb img,#lb video{max-width:92vw;max-height:78vh;object-fit:contain;background:#0d0f13;border-radius:8px}
+#lb .bar{display:flex;gap:8px;align-items:center;max-width:92vw}
+#lb .lp{color:var(--dim);font-size:12px;word-break:break-all;flex:1}
+aside.hide{display:none}
+main.nowide{grid-template-columns:1fr}
 @media(max-width:800px){main{grid-template-columns:1fr}aside{border-right:0;border-bottom:1px solid var(--line)}}
 </style>
 </head>
@@ -57,28 +67,28 @@ font-size:30px;overflow:hidden}
 <header>
   <h1>🔍 MediaSearch</h1>
   <span class="sub">画面搜索引擎 · 搜的是内容不是文件名 · 127.0.0.1:8686</span>
+  <button id="tgl" style="margin-left:auto">☰ 侧栏</button>
 </header>
 <main>
-<aside>
-  <h2>搜索范围（勾选 = 建库＋参与搜索）</h2>
+<aside id="side">
+  <h2>媒体库（勾选 = 参与搜索）</h2>
   <div id="scopes"></div>
   <div class="row">
-    <button id="addScope" style="flex:1">＋ 加文件夹</button>
-    <button id="build" style="flex:1">建库（增量）</button>
+    <button id="addScope" style="flex:1" title="粘贴文件夹路径，点确定后立即自动建库，把里面的图/视频收入库">＋ 加新库</button>
+    <button id="build" style="flex:1" title="文件夹里新加了图片/视频后点它，只把新内容补进库，已入库的不重复建">补建新文件</button>
   </div>
   <div id="buildBar"><i></i></div>
   <div id="buildInfo"></div>
 
-  <h2>参数面板（即改即生效 → settings.json）</h2>
-  <div class="row"><label>topN</label><input type="number" id="p-topn" min="1" max="20" style="width:70px"></div>
-  <div class="row"><label>向量维度</label>
-    <select id="p-dim" style="width:90px">
-      <option value="2048">2048（全）</option><option value="1024">1024</option>
-      <option value="512">512</option><option value="256">256</option>
-    </select></div>
-  <div class="row"><label>最低分</label><input type="number" id="p-min" step="0.01" min="0" max="1" style="width:70px"></div>
-  <div class="row"><label>闲置释放(分)</label><input type="number" id="p-idle" min="0" style="width:70px" title="0=不自动释放"></div>
+  <details open><summary style="cursor:pointer;font-size:13px;color:var(--dim);letter-spacing:.05em">参数面板（即改即生效 → settings.json）</summary>
+  <div class="row"><label>返回条数</label><input type="number" id="p-topn" min="1" max="200" style="width:70px" title="一次最多显示几条结果"></div>
+  <div class="row"><label>向量维度</label><select id="p-dim" style="width:90px" title="越大越准；一般不用改"><option value="2048">2048（全）</option><option value="1024">1024</option><option value="512">512</option><option value="256">256</option></select></div>
+  <div class="row"><label>相似度门槛</label><input type="number" id="p-min" step="0.05" min="0" max="1" style="width:70px" title="低于此相似度的不显示；搜不到就调低，结果太杂就调高"></div>
+  <div class="row"><label>闲置释放(分钟)</label><input type="number" id="p-idle" min="0" style="width:70px" title="无操作几分钟后自动释放显存；0=不自动释放"></div>
+  <div class="row"><label>显存上限(GB)</label><input type="number" id="p-cap" min="0" max="64" style="width:70px" title="显存预算：0=纯CPU；6=权重进显存全速跑；更大=建库更吃显存更快；装不下自动卸运存变慢。下次加载生效"></div>
   <div id="saveHint"></div>
+  </details>
+  <div class="row"><button id="resetDef" style="width:100%">恢复默认参数</button></div>
 
   <h2>服务状态</h2>
   <div class="st"><span>模型</span><b id="st-model"><span class="dot idle"></span>未知</b></div>
@@ -91,13 +101,14 @@ font-size:30px;overflow:hidden}
 
 <section>
   <div style="padding:14px 14px 4px;display:flex;gap:8px">
-    <input id="q" placeholder="输模糊短语，搜画面内容…（例：坐在窗台上的女孩）">
+    <input id="q" placeholder="输入要搜的名词或一句话，搜画面内容…">
     <button class="pri" id="go" style="white-space:nowrap">搜索</button>
   </div>
   <div id="resInfo"></div>
-  <div id="results"><div class="empty">搜个短语试试（测集三题在左上标签里）</div></div>
+  <div id="results"><div class="empty">在上面输入要搜的名词或一句话，点搜索</div></div>
 </section>
 </main>
+<div id="lb"><div id="lbc"></div><div class="bar"><span class="lp" id="lbp"></span><button id="lbrv">在文件夹中显示</button><button id="lbcp">复制路径</button></div></div>
 
 <script>
 const $=id=>document.getElementById(id);
@@ -122,22 +133,31 @@ async function loadScopes(){
     const ck=l.querySelector("input");
     ck.onchange=e=>api("/scopes",{id:s.id,enabled:e.target.checked},"PUT")
       .then(loadScopes).catch(showErr);
-    const rm=document.createElement("button");rm.textContent="移除";rm.title="只删登记和向量档案，绝不删硬盘文件";
+    const rm=document.createElement("button");rm.textContent="移除";rm.title="删除此库的登记与向量档案（不会删硬盘文件），需输入「确定删除」确认";
     rm.style.cssText="font-size:11px;padding:2px 8px;margin:2px 0 8px;color:var(--dim)";
     rm.onclick=()=>{
-      if(confirm("移除范围「"+s.name+"」？\n\n只删掉它的登记和库里的向量档案——绝不删除硬盘上的任何文件。")){
-        api("/remove-scope",{id:s.id}).then(()=>{loadScopes();poll()}).catch(showErr);
-      }
+      const w=prompt("移除「"+s.name+"」将删掉它的登记和向量档案（硬盘文件不受影响）。\n建库很慢，误删要重来。\n\n请输入「确定删除」四个字以确认：");
+      if(w!=="确定删除")return;
+      api("/remove-scope",{id:s.id,delete_vectors:true}).then(()=>{loadScopes();poll()}).catch(showErr);
     };
     $("scopes").append(l,p,rm);
   });
 }
+$("addScope").title="浏览器限制：需粘贴文件夹完整路径（如 D:\\照片）；点确定后立即自动建库";
 $("addScope").onclick=()=>{
-  const path=prompt("粘贴文件夹完整路径（只索引其中的图/视频，可含子夹）：");
+  const path=prompt("粘贴文件夹完整路径（只索引其中的图/视频，可含子夹）：\n\n点确定后会立即自动开始建库。");
   if(!path)return;
-  api("/add-scope",{path:path.trim()}).then(loadScopes).catch(showErr);
+  $("addScope").disabled=true;$("build").disabled=true;
+  api("/add-scope",{path:path.trim()}).then(d2=>{
+    loadScopes();
+    return api("/embed-scope",{scope:d2.id});
+  }).then(d2=>{
+    $("buildInfo").textContent="建库中… "+d2.total+" 件待嵌（图≈1.2s/件，视频 4-15s/件）";
+    $("buildBar").style.display="block";
+  }).catch(showErr);
 };
 $("build").onclick=()=>{
+  $("addScope").disabled=true;$("build").disabled=true;
   const sc=checked();
   api("/embed-scope",sc.length?{scope:sc}:{}).then(d=>{
     $("buildInfo").textContent="建库中… "+d.total+" 件待嵌（图≈1.2s/件，视频 4-15s/件）";
@@ -167,29 +187,47 @@ async function poll(){
     }else if(b&&b.state==="error"){
       $("buildBar").style.display="none";$("buildInfo").textContent="建库失败："+b.err;
     }
+    const busy=b&&b.state==="running";
+    $("addScope").disabled=busy;$("build").disabled=busy;
+    if(s.vram_total_mb)VT=s.vram_total_mb;
     if(s.settings){
-      $("p-topn").value=s.settings.topn;$("p-dim").value=String(s.settings.dim);
-      $("p-min").value=s.settings.min_score;$("p-idle").value=s.settings.idle_release_min;
+      const set=(id,v)=>{const el=$(id);if(document.activeElement!==el)el.value=v};
+      set("p-topn",s.settings.topn);set("p-dim",String(s.settings.dim));
+      set("p-min",s.settings.min_score);set("p-idle",s.settings.idle_release_min);
+      set("p-cap",s.settings.gpu_cap_gib??6);
     }
   }catch(e){}
 }
 setInterval(poll,2000);
 
 let saveT=null;
+let VT=0;
 function saveSettings(){
+  const cap=+$("p-cap").value||6;
+  if(VT&&cap*1024>VT&&!confirm("你的显卡总显存约 "+(VT/1024).toFixed(1)+"GB，填 "+cap+"GB 超出部分会挤进内存，速度大幅变慢甚至加载失败。\n确定要设为 "+cap+"GB 吗？")){$("p-cap").value=6;return;}
   clearTimeout(saveT);
   saveT=setTimeout(async()=>{
     try{
       await api("/settings",{topn:+$("p-topn").value||5,dim:+$("p-dim").value,
-        min_score:+$("p-min").value,idle_release_min:+$("p-idle").value},"PUT");
+        min_score:+$("p-min").value,idle_release_min:+$("p-idle").value,
+        gpu_cap_gib:+$("p-cap").value||6},"PUT");
       $("saveHint").textContent="✓ 已保存 settings.json，即改即生效";
     }catch(e){$("saveHint").textContent="保存失败："+e.message}
   },300);
 }
-["p-topn","p-dim","p-min","p-idle"].forEach(id=>$(id).addEventListener("change",saveSettings));
+["p-topn","p-dim","p-min","p-idle","p-cap"].forEach(id=>$(id).addEventListener("change",saveSettings));
+
+$("resetDef").addEventListener("click",async()=>{
+  try{
+    await api("/settings",{topn:20,dim:2048,min_score:0.2,idle_release_min:30,gpu_cap_gib:6},"PUT");
+    $("saveHint").textContent="✓ 已恢复默认参数";
+    poll();
+  }catch(e){$("saveHint").textContent="恢复失败："+e.message}
+});
 
 function checkedList(){const c=checked();return c.length?c:"all"}
 async function doSearch(q){
+  if(!checked().length){alert("请先在左侧「媒体库」勾选至少 1 个库（勾选 = 参与搜索）");return;}
   $("go").disabled=true;$("go").textContent="搜…";
   try{
     const sc=checkedList();
@@ -197,23 +235,21 @@ async function doSearch(q){
     $("resInfo").textContent=`“${q}” · ${d.results.length} 条 · ${d.ms}ms · 库:${d.lib} · 范围:${Array.isArray(sc)?sc.join(","):sc}`;
     $("resInfo").style.color="";
     const R=$("results");R.innerHTML="";
-    if(!d.results.length)R.innerHTML='<div class="empty">没有结果（试试调低「最低分」）</div>';
+    if(!d.results.length)R.innerHTML='<div class="empty">没有结果（试试调低「相似度门槛」）</div>';
     d.results.forEach(r=>{
       const c=document.createElement("div");c.className="card";
       const img=r.modality==="image"
         ?`<img loading="lazy" src="/file?path=${encodeURIComponent(r.path)}" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'图片缺失',style:'font-size:11px;color:var(--dim)'}))">`
-        :`<div style="font-size:34px">🎬</div>`;
+        :`<video preload="metadata" muted src="/file?path=${encodeURIComponent(r.path)}#t=0.5" onerror="this.replaceWith(Object.assign(document.createElement('div'),{textContent:'🎬',style:'font-size:34px'}))"></video>`;
       c.innerHTML=`<div class="th">${img}</div><div class="bd">
         <div class="score">${r.score.toFixed(3)}</div>
         <div class="meta">${r.modality==="image"?"图":"视频"} · 范围 ${r.scope}</div>
         <div class="path"></div></div>`;
       const pathEl=c.querySelector(".path");
-      pathEl.textContent=r.path;pathEl.title="点击复制完整路径";
-      pathEl.onclick=async()=>{
-        try{await navigator.clipboard.writeText(r.path);
-        const el=c.querySelector(".path");el.style.color="var(--ok)";
-        setTimeout(()=>el.style.color="",1200);}catch(e){}
-      };
+      pathEl.textContent=r.path;pathEl.title="在文件夹中显示该文件";
+      pathEl.onclick=()=>openReveal(r.path);
+      const thEl=c.querySelector(".th");thEl.style.cursor="zoom-in";
+      thEl.title="点击放大/播放";thEl.onclick=()=>openLightbox(r);
       R.append(c);
     });
   }catch(e){$("resInfo").textContent="";$("results").innerHTML='<div class="empty">'+e.message+"</div>"}
@@ -222,6 +258,27 @@ async function doSearch(q){
 $("go").onclick=()=>doSearch($("q").value.trim());
 $("q").addEventListener("keydown",e=>{if(e.key==="Enter"&&$("q").value.trim())doSearch($("q").value.trim())});
 function showErr(m){if(typeof m==="string"&&m!==""){const el=$("resInfo");el.textContent="⚠ "+m;el.style.color="var(--err,#ff6b6b)";el.scrollIntoView&&el.scrollIntoView({block:"nearest"});}}
+
+let lbPath="";
+function openLightbox(r){
+  lbPath=r.path;
+  const C=$("lbc");C.innerHTML="";
+  if(r.modality==="image"){const im=new Image();im.src="/file?path="+encodeURIComponent(r.path);C.appendChild(im);}
+  else{const v=document.createElement("video");v.controls=true;v.autoplay=true;v.src="/file?path="+encodeURIComponent(r.path);C.appendChild(v);}
+  $("lbp").textContent=r.path;
+  $("lb").classList.add("on");
+}
+function closeLightbox(){$("lb").classList.remove("on");$("lbc").innerHTML="";}
+async function openReveal(p){
+  try{await api("/reveal",{path:p});}
+  catch(e){alert("在文件夹中显示失败："+e.message)}
+}
+$("lb").addEventListener("click",e=>{if(e.target.id==="lb")closeLightbox()});
+document.addEventListener("keydown",e=>{if(e.key==="Escape")closeLightbox()});
+$("lbrv").onclick=()=>openReveal(lbPath);
+$("lbcp").onclick=async()=>{try{await navigator.clipboard.writeText(lbPath);$("lbcp").textContent="已复制";setTimeout(()=>$("lbcp").textContent="复制路径",1200);}catch(e){}};
+
+$("tgl").onclick=()=>{$("side").classList.toggle("hide");document.querySelector("main").classList.toggle("nowide")};
 
 loadScopes().catch(showErr);poll();
 </script>
