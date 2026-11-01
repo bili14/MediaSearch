@@ -320,6 +320,25 @@ def main(host: str | None = None, port: int | None = None, read_only: bool = Fal
     host = host or cfg.HOST
     port = port if port is not None else cfg.PORT
     store, source = libstore.load_library()
+    # port fallback: configured port taken (other app or another instance)
+    # -> walk up to a free one instead of crashing; pin via settings "port"
+    #    or env WEMM_PORT (MCP users: keep it pinned for stable config)
+    import socket as _socket
+    import sys as _sys
+    _p0 = port
+    for _ in range(20):
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as _s:
+            try:
+                _s.bind((host, port))
+                break
+            except OSError:
+                port += 1
+    else:
+        raise SystemExit("no free port in %d..%d" % (_p0, port))
+    if port != _p0:
+        print("port %d busy -> using %d (pin via settings.json \"port\" or WEMM_PORT)"
+              % (_p0, port), file=_sys.stderr)
+
     print("=" * 60)
     print("MediaSearch service on http://%s:%d/" % (host, port))
     print("faces: web UI + REST API + MCP /mcp + /v1/embeddings + /healthz (one port)")

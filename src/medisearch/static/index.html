@@ -66,7 +66,7 @@ main.nowide{grid-template-columns:1fr}
 <body>
 <header>
   <h1>🔍 MediaSearch</h1>
-  <span class="sub">画面搜索引擎 · 搜的是内容不是文件名 · 127.0.0.1:8686</span>
+  <span class="sub">画面搜索引擎 · 搜的是内容不是文件名 · <span id="addr">本地服务</span></span>
   <button id="tgl" style="margin-left:auto">☰ 侧栏</button>
 </header>
 <main>
@@ -111,6 +111,7 @@ main.nowide{grid-template-columns:1fr}
 <div id="lb"><div id="lbc"></div><div class="bar"><span class="lp" id="lbp"></span><button id="lbrv">在文件夹中显示</button><button id="lbcp">复制路径</button></div></div>
 
 <script>
+try{document.getElementById("addr").textContent=location.host||"本地服务"}catch(e){}
 const $=id=>document.getElementById(id);
 const checked=()=>[...document.querySelectorAll("#scopes input:checked")].map(i=>i.value);
 
